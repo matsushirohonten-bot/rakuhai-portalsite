@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配達分割ツール | 明治牛乳宅配センター松代商店</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4fc3f7;
+            --primary-dark: #29b6f6;
+            --primary-light: #b3e5fc;
+            --primary-pale: #e1f5fe;
+            --accent-green: #66bb6a;
+            --accent-orange: #ffa726;
+            --error-red: #ef5350;
+            --text: #333;
+            --text-light: #666;
+            --shadow: 0 15px 40px rgba(79, 195, 247, 0.2);
+            --radius: 20px;
+            --radius-sm: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(180deg, var(--primary-pale) 0%, #fff 50%, var(--primary-pale) 100%);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .bg-characters {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .char {
+            position: absolute;
+            font-size: 40px;
+            opacity: 0.5;
+            animation: floatChar 8s ease-in-out infinite;
+        }
+
+        .char:nth-child(1) { top: 5%; left: 3%; animation-delay: 0s; font-size: 50px; }
+        .char:nth-child(2) { top: 15%; right: 5%; animation-delay: 1s; font-size: 45px; }
+        .char:nth-child(3) { top: 35%; left: 5%; animation-delay: 2s; font-size: 35px; }
+        .char:nth-child(4) { top: 55%; right: 8%; animation-delay: 3s; font-size: 55px; }
+        .char:nth-child(5) { top: 75%; left: 8%; animation-delay: 4s; font-size: 40px; }
+        .char:nth-child(6) { top: 25%; left: 15%; animation-delay: 5s; font-size: 30px; }
+        .char:nth-child(7) { top: 65%; right: 15%; animation-delay: 6s; font-size: 35px; }
+        .char:nth-child(8) { top: 85%; right: 3%; animation-delay: 7s; font-size: 45px; }
+        .char:nth-child(9) { top: 45%; left: 2%; animation-delay: 1.5s; font-size: 38px; }
+        .char:nth-child(10) { top: 10%; left: 50%; animation-delay: 2.5s; font-size: 42px; }
+
+        @keyframes floatChar {
+            0%, 100% { transform: translateY(0) rotate(-5deg) scale(1); }
+            50% { transform: translateY(-15px) rotate(5deg) scale(1.1); }
+        }
+
+        .password-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        }
+
+        .password-screen.hidden { display: none; }
+
+        .password-box {
+            background: white;
+            padding: 50px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .password-box .logo { font-size: 60px; margin-bottom: 15px; animation: bounce 2s infinite; }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .password-box h2 { font-size: 22px; color: var(--primary-dark); margin-bottom: 5px; }
+        .password-box .shop-name { font-size: 15px; color: var(--text-light); margin-bottom: 25px; }
+
+        .password-input-group { display: flex; gap: 10px; }
+
+        .password-input-group input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #ddd;
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+        }
+
+        .password-input-group input:focus { outline: none; border-color: var(--primary); }
+
+        .password-input-group button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .password-input-group button:hover { transform: translateY(-2px); }
+
+        .password-error { color: #e53935; margin-top: 15px; font-size: 14px; display: none; }
+        .password-error.show { display: block; animation: shake 0.5s; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .main-content { display: none; position: relative; z-index: 1; }
+        .main-content.visible { display: block; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 25px 30px;
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '🥛🧴🚚🐄🍦';
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 40px;
+            opacity: 0.4;
+            letter-spacing: 5px;
+        }
+
+        .header-content { position: relative; z-index: 1; }
+        .header .brand { display: flex; align-items: center; gap: 15px; margin-bottom: 8px; }
+        .header .brand-logo { font-size: 45px; }
+        .header .brand-text h1 { font-size: 26px; font-weight: 900; }
+        .header .brand-text .shop-name { font-size: 14px; opacity: 0.9; }
+
+        .route-bar {
+            background: linear-gradient(135deg, #fff9c4, #fff59d);
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 16px;
+            color: #f57f17;
+            box-shadow: 0 3px 15px rgba(255, 193, 7, 0.2);
+            border: 2px solid #ffca28;
+        }
+
+        .route-bar.show { display: flex; }
+        .route-bar .icon { font-size: 24px; }
+
+        .character-bar {
+            background: white;
+            padding: 15px;
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            font-size: 36px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.06);
+            flex-wrap: wrap;
+        }
+
+        .character-bar span { transition: transform 0.3s; cursor: default; }
+        .character-bar span:hover { transform: scale(1.3) rotate(10deg); }
+
+        .card {
+            background: rgba(255,255,255,0.98);
+            border-radius: var(--radius);
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.06);
+            border: 1px solid rgba(79, 195, 247, 0.2);
+            transition: all 0.3s;
+        }
+
+        .card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(79, 195, 247, 0.15); }
+
+        .card h2 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--primary-dark);
+        }
+
+        .card h2 .step {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        /* 重要な注意喚起 */
+        .important-notice {
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border: 3px solid var(--accent-orange);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .important-notice h3 {
+            color: #e65100;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .important-notice h3 .icon { font-size: 24px; }
+
+        .important-notice .flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+
+        .important-notice .flow-box {
+            background: white;
+            padding: 10px 15px;
+            border-radius: var(--radius-sm);
+            border: 2px solid #ffcc80;
+            text-align: center;
+        }
+
+        .important-notice .flow-box .label { font-size: 11px; color: var(--text-light); }
+        .important-notice .flow-box .value { font-weight: 700; color: #e65100; }
+        .important-notice .flow-arrow { font-size: 20px; color: #e65100; }
+
+        .important-notice p {
+            font-size: 13px;
+            color: #bf360c;
+            text-align: center;
+        }
+
+        /* 楽配くん手順（折りたたみ） */
+        .howto-section {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border: 2px solid var(--primary);
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .howto-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .howto-header:hover { opacity: 0.95; }
+
+        .howto-header .title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .howto-header .toggle {
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+
+        .howto-header.open .toggle { transform: rotate(180deg); }
+
+        .howto-content {
+            display: none;
+            padding: 20px;
+        }
+
+        .howto-content.open { display: block; }
+
+        .howto-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .howto-step {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            background: white;
+            padding: 12px 15px;
+            border-radius: var(--radius-sm);
+            border-left: 4px solid var(--primary);
+        }
+
+        .howto-step .num {
+            background: var(--primary);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .howto-step .text {
+            font-size: 14px;
+            color: var(--text);
+        }
+
+        .howto-step .text strong {
+            color: var(--primary-dark);
+        }
+
+        .howto-checklist {
+            background: white;
+            padding: 15px;
+            border-radius: var(--radius-sm);
+            margin-top: 15px;
+        }
+
+        .howto-checklist h4 {
+            font-size: 13px;
+            color: var(--primary-dark);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .howto-checklist ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+        }
+
+        .howto-checklist li {
+            font-size: 13px;
+            padding: 6px 10px;
+            background: var(--primary-pale);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .howto-checklist li::before {
+            content: '☑';
+            color: var(--accent-green);
+        }
+
+        .howto-screenshot {
+            margin: 15px 0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            border: 3px solid var(--primary-light);
+        }
+
+        .howto-screenshot img {
+            width: 100%;
+            display: block;
+        }
+
+        .howto-screenshot .caption {
+            background: var(--primary);
+            color: white;
+            padding: 8px 15px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .howto-step-with-image {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--primary);
+        }
+
+        .howto-step-with-image .step-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .howto-step-with-image .step-num {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .howto-step-with-image .step-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+
+        .howto-step-with-image .step-desc {
+            font-size: 14px;
+            color: var(--text);
+            margin-bottom: 15px;
+            padding-left: 48px;
+        }
+
+        .howto-step-with-image .click-point {
+            display: inline-block;
+            background: #ffeb3b;
+            color: #333;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            margin-left: 5px;
+        }
+
+        .drop-zone {
+            border: 3px dashed var(--primary-light);
+            border-radius: var(--radius-sm);
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--primary-pale);
+        }
+
+        .drop-zone:hover { border-color: var(--primary); background: #d4f1ff; }
+        .drop-zone.dragover { border-color: var(--primary-dark); border-style: solid; }
+        .drop-zone.loaded { border-color: var(--accent-green); background: #e8f5e9; }
+
+        .drop-zone .icon { font-size: 50px; margin-bottom: 10px; }
+        .drop-zone h3 { font-size: 16px; margin-bottom: 5px; color: var(--primary-dark); }
+        .drop-zone p { color: var(--text-light); font-size: 13px; }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 12px 15px;
+            background: #e8f5e9;
+            border-radius: var(--radius-sm);
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            color: #2e7d32;
+        }
+
+        .file-info.show { display: flex; }
+
+        .code-preview {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            color: var(--text-light);
+            max-height: 100px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .code-preview.show { display: block; }
+        .code-preview strong { display: block; margin-bottom: 5px; color: var(--text); }
+
+        .settings-row { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .settings-row label { font-weight: 600; font-size: 14px; }
+
+        select {
+            padding: 10px 15px;
+            border: 2px solid var(--primary-light);
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+        }
+
+        select:focus { outline: none; border-color: var(--primary); }
+
+        .tantou-grid { display: grid; gap: 10px; }
+
+        .tantou-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 15px;
+            background: var(--primary-pale);
+            border-radius: var(--radius-sm);
+            flex-wrap: wrap;
+        }
+
+        .tantou-row:hover { background: #d4f1ff; }
+
+        .tantou-row .badge {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 13px;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .tantou-row span { color: var(--text-light); font-size: 13px; }
+
+        .tantou-row input {
+            flex: 1;
+            min-width: 80px;
+            padding: 10px 12px;
+            border: 2px solid var(--primary-light);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .tantou-row input:focus { outline: none; border-color: var(--primary); }
+
+        .btn-container { text-align: center; padding: 10px 0; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: inherit;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 8px 25px rgba(79, 195, 247, 0.4);
+        }
+
+        .btn-primary:hover:not(:disabled) { transform: translateY(-3px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--accent-green), #43a047);
+            color: white;
+            box-shadow: 0 8px 25px rgba(102, 187, 106, 0.4);
+        }
+
+        .btn-success:hover { transform: translateY(-3px); }
+
+        .btn-group { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 25px; }
+
+        .check-result {
+            padding: 15px 20px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .check-result.show { display: flex; }
+
+        .check-result.success {
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border: 2px solid var(--accent-green);
+        }
+
+        .check-result.error {
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+            border: 2px solid var(--error-red);
+        }
+
+        .check-result .icon { font-size: 28px; }
+        .check-result.success .text { color: #2e7d32; font-weight: 600; }
+        .check-result.error .text { color: #c62828; font-weight: 600; }
+        .check-result .detail { font-size: 13px; margin-top: 3px; }
+
+        .verification-reminder {
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border: 3px dashed var(--accent-green);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .verification-reminder h3 {
+            color: #2e7d32;
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .verification-reminder p { font-size: 14px; color: #1b5e20; }
+
+        .verification-reminder .check-items {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .verification-reminder .check-item {
+            background: white;
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            color: #2e7d32;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .result-box {
+            background: white;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+            border: 2px solid var(--primary-light);
+        }
+
+        .result-box.total { border-color: var(--accent-green); border-width: 3px; }
+
+        .result-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 15px;
+            font-weight: 700;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-header .num {
+            background: rgba(255,255,255,0.2);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+        }
+
+        .result-box.total .result-header { background: linear-gradient(135deg, var(--accent-green), #43a047); }
+
+        .result-table { width: 100%; border-collapse: collapse; }
+
+        .result-table th {
+            background: var(--primary-pale);
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-light);
+            border-bottom: 2px solid var(--primary-light);
+        }
+
+        .result-table th:last-child { text-align: right; width: 60px; }
+
+        .result-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+
+        .result-table td:last-child { text-align: right; font-weight: 600; width: 60px; }
+        .result-table .sum-row { background: #fff8e1; }
+        .result-table .sum-row td { font-weight: 700; border-bottom: none; }
+
+        .hidden { display: none !important; }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-light);
+            font-size: 13px;
+        }
+
+        .footer .brand { color: var(--primary-dark); font-weight: 700; }
+
+        @media (max-width: 768px) {
+            .header .brand-text h1 { font-size: 20px; }
+            .header::before { display: none; }
+            .character-bar { gap: 10px; font-size: 28px; }
+            .tantou-row { flex-direction: column; align-items: stretch; }
+            .tantou-row .badge { align-self: flex-start; }
+            .btn { width: 100%; justify-content: center; }
+            .important-notice .flow { flex-direction: column; }
+            .important-notice .flow-arrow { transform: rotate(90deg); }
+        }
+
+        @media print {
+            body { background: white !important; }
+            .header, .character-bar, .btn-container, .btn-group, .drop-zone, .settings-row, .card h2, .password-screen, .file-info, .code-preview, .footer, .bg-characters, .important-notice, .howto-section { display: none !important; }
+            .route-bar, .verification-reminder { display: flex !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .main-content.visible { display: block !important; }
+            .card { box-shadow: none; padding: 0; margin: 0; border: none; }
+            .results-grid { display: block; }
+            .result-box { break-inside: avoid; margin-bottom: 15px; box-shadow: none; border: 2px solid #333; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-characters">
+        <div class="char">🥛</div><div class="char">🐄</div><div class="char">🚚</div>
+        <div class="char">🧴</div><div class="char">🍦</div><div class="char">📦</div>
+        <div class="char">🥄</div><div class="char">🌸</div><div class="char">⭐</div><div class="char">😊</div>
+    </div>
+
+    <div class="password-screen" id="passwordScreen">
+        <div class="password-box">
+            <div class="logo">🥛</div>
+            <h2>配達分割ツール</h2>
+            <p class="shop-name">明治牛乳宅配センター 松代商店</p>
+            <div class="password-input-group">
+                <input type="password" id="passwordInput" placeholder="パスワード" onkeypress="if(event.key==='Enter')checkPassword()">
+                <button onclick="checkPassword()">入る</button>
+            </div>
+            <p class="password-error" id="passwordError">❌ パスワードが違います</p>
+        </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="container">
+            <header class="header">
+                <div class="header-content">
+                    <div class="brand">
+                        <span class="brand-logo">🥛</span>
+                        <div class="brand-text">
+                            <h1>配達分割ツール</h1>
+                            <p class="shop-name">明治牛乳宅配センター 松代商店</p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ⚠️ 重要な注意喚起 -->
+            <div class="important-notice">
+                <h3><span class="icon">⚠️</span>使用前に必ず確認！</h3>
+                <div class="flow">
+                    <div class="flow-box">
+                        <div class="label">楽配くん</div>
+                        <div class="value">📋 配達表</div>
+                    </div>
+                    <span class="flow-arrow">⟺</span>
+                    <div class="flow-box">
+                        <div class="label">分割ツール</div>
+                        <div class="value">📊 全体集計</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-box">
+                        <div class="label">目視確認</div>
+                        <div class="value">👀 一致？</div>
+                    </div>
+                </div>
+                <p>楽配くんから印刷した配達表の商品数量と、このツールの「全体集計」が一致しているか必ず確認してください。<br>一致していない場合、分割データは使用できません。</p>
+            </div>
+
+            <!-- 📖 楽配くんデータ出力手順 -->
+            <div class="howto-section">
+                <div class="howto-header" onclick="toggleHowto()">
+                    <span class="title">📖 楽配くんデータの作り方（クリックで開閉）</span>
+                    <span class="toggle">▼</span>
+                </div>
+                <div class="howto-content" id="howtoContent">
+                    
+                    <!-- STEP 1 -->
+                    <div class="howto-step-with-image">
+                        <div class="step-header">
+                            <span class="step-num">1</span>
+                            <span class="step-title">メインメニュー画面</span>
+                        </div>
+                        <div class="step-desc">
+                            楽配くんを起動し、<span class="click-point">特殊処理</span>をクリック
+                        </div>
+                        <div class="howto-screenshot">
+                            <img src="images/rakuhai-step1.png" alt="メインメニュー">
+                            <div class="caption">👆「特殊処理」ボタンをクリック</div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 2 -->
+                    <div class="howto-step-with-image">
+                        <div class="step-header">
+                            <span class="step-num">2</span>
+                            <span class="step-title">特殊処理画面</span>
+                        </div>
+                        <div class="step-desc">
+                            <span class="click-point">データ出力メニュー</span>をクリック
+                        </div>
+                        <div class="howto-screenshot">
+                            <img src="images/rakuhai-step2.png" alt="特殊処理">
+                            <div class="caption">👆「データ出力メニュー」ボタンをクリック</div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3 -->
+                    <div class="howto-step-with-image">
+                        <div class="step-header">
+                            <span class="step-num">3</span>
+                            <span class="step-title">データ出力メニュー画面</span>
+                        </div>
+                        <div class="step-desc">
+                            <span class="click-point">宅配先別配達情報</span>をクリック
+                        </div>
+                        <div class="howto-screenshot">
+                            <img src="images/rakuhai-step3.png" alt="データ出力メニュー">
+                            <div class="caption">👆「宅配先別配達情報」ボタンをクリック</div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 4 -->
+                    <div class="howto-step-with-image">
+                        <div class="step-header">
+                            <span class="step-num">4</span>
+                            <span class="step-title">出力設定画面</span>
+                        </div>
+                        <div class="step-desc">
+                            対象年月を入力し、以下の項目にチェックを入れて実行
+                        </div>
+                        <div class="howto-screenshot">
+                            <img src="images/rakuhai-step4.png" alt="宅配先別配達情報">
+                            <div class="caption">👆 設定を確認して実行</div>
+                        </div>
+                        
+                        <div class="howto-checklist">
+                            <h4>☑️ チェックを入れる項目</h4>
+                            <ul>
+                                <li>集金方法：<strong>全て</strong></li>
+                                <li>出力順：<strong>ルート・配達順</strong></li>
+                                <li>ルート</li>
+                                <li>氏名</li>
+                                <li>配達パターン</li>
+                                <li>商品名</li>
+                                <li>日別本数</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- STEP 5 -->
+                    <div class="howto-step-with-image" style="border-left-color: var(--accent-green);">
+                        <div class="step-header">
+                            <span class="step-num" style="background: linear-gradient(135deg, var(--accent-green), #43a047);">5</span>
+                            <span class="step-title" style="color: #2e7d32;">CSVファイルを保存</span>
+                        </div>
+                        <div class="step-desc">
+                            <span class="click-point" style="background: var(--accent-green); color: white;">実行ボタン</span>を押して、CSVファイルを保存する
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="route-bar" id="routeBar">
+                <span class="icon">🚚</span>
+                <span id="routeName">ルート名称</span>
+            </div>
+
+            <div class="character-bar">
+                <span>🥛</span><span>🐄</span><span>🧴</span><span>🍦</span><span>📦</span>
+                <span>🚚</span><span>👷</span><span>🏠</span><span>💪</span><span>😊</span>
+            </div>
+
+            <!-- ① ファイルアップロード -->
+            <div class="card">
+                <h2><span class="step">1</span>楽配くんデータをアップロード</h2>
+                <div class="drop-zone" id="dropZone">
+                    <span class="icon">📁</span>
+                    <h3>ここにファイルをドラッグ＆ドロップ</h3>
+                    <p>楽配くんから出力した「宅配先別配達情報」</p>
+                    <p style="margin-top:8px; font-size:11px; color:#999;">対応形式: .xlsx, .csv</p>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none;">
+                <div class="file-info" id="fileInfo">
+                    <span>✅</span>
+                    <span id="fileName"></span>
+                </div>
+                <div class="code-preview" id="codePreview">
+                    <strong>📋 宅配先コード一覧（出現順）:</strong>
+                    <span id="codeListContent"></span>
+                </div>
+            </div>
+
+            <!-- ② 分割設定 -->
+            <div class="card">
+                <h2><span class="step">2</span>分割設定</h2>
+                <div class="settings-row">
+                    <label>分割数:</label>
+                    <select id="bunkatsu" onchange="updateTantouRows()">
+                        <option value="2">2分割</option>
+                        <option value="3">3分割</option>
+                        <option value="4">4分割</option>
+                        <option value="5">5分割</option>
+                    </select>
+                </div>
+                <div class="tantou-grid" id="tantouGrid"></div>
+            </div>
+
+            <!-- ③ 実行 -->
+            <div class="btn-container">
+                <button class="btn btn-primary" id="executeBtn" onclick="execute()" disabled>
+                    🚀 集計を実行する
+                </button>
+            </div>
+
+            <!-- ④ 結果 -->
+            <div class="card hidden" id="resultCard">
+                <h2><span class="step">3</span>集計結果</h2>
+
+                <div class="verification-reminder">
+                    <h3>👀 楽配くん配達表と照合してください！</h3>
+                    <p>下記の「全体集計」と、楽配くんから印刷した配達表の数量が一致しているか確認</p>
+                    <div class="check-items">
+                        <div class="check-item">✓ 商品名が同じか</div>
+                        <div class="check-item">✓ 数量が同じか</div>
+                        <div class="check-item">✓ 合計が同じか</div>
+                    </div>
+                </div>
+
+                <div class="check-result" id="tantouCheckResult">
+                    <span class="icon"></span>
+                    <div>
+                        <div class="text"></div>
+                        <div class="detail"></div>
+                    </div>
+                </div>
+
+                <div class="results-grid" id="resultsGrid"></div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="downloadExcel()">📥 Excelダウンロード</button>
+                </div>
+            </div>
+
+            <footer class="footer">
+                <span class="brand">明治牛乳宅配センター 松代商店</span> | 配達分割ツール
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        let routeName = '';
+        let sheetData = [];
+        let uniqueCodes = [];
+        let results = [];
+
+        function checkPassword() {
+            const input = document.getElementById('passwordInput').value;
+            if (input === 'password') {
+                document.getElementById('passwordScreen').classList.add('hidden');
+                document.getElementById('mainContent').classList.add('visible');
+            } else {
+                document.getElementById('passwordError').classList.add('show');
+                document.getElementById('passwordInput').value = '';
+                setTimeout(() => document.getElementById('passwordError').classList.remove('show'), 2000);
+            }
+        }
+
+        function toggleHowto() {
+            const header = document.querySelector('.howto-header');
+            const content = document.getElementById('howtoContent');
+            header.classList.toggle('open');
+            content.classList.toggle('open');
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.onclick = () => fileInput.click();
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+        dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
+        fileInput.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0]); };
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    let sheetName = workbook.SheetNames.find(n => n === '全体') || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                    let headerRow = 0;
+                    for (let i = 0; i < Math.min(5, sheetData.length); i++) {
+                        if (sheetData[i] && sheetData[i].includes('宅配先コード')) { headerRow = i; break; }
+                    }
+
+                    const headers = sheetData[headerRow];
+                    window.colIndex = {
+                        code: headers.indexOf('宅配先コード'),
+                        product: headers.indexOf('商品名称'),
+                        qty: headers.findIndex(h => h && h.toString().includes('日')),
+                        routeName: headers.indexOf('ルート名称')
+                    };
+                    window.headerRow = headerRow;
+
+                    if (window.colIndex.routeName >= 0 && sheetData[headerRow + 1]) {
+                        routeName = sheetData[headerRow + 1][window.colIndex.routeName] || '';
+                        if (routeName) {
+                            document.getElementById('routeName').textContent = routeName;
+                            document.getElementById('routeBar').classList.add('show');
+                        }
+                    }
+
+                    uniqueCodes = [];
+                    for (let i = headerRow + 1; i < sheetData.length; i++) {
+                        const code = sheetData[i][window.colIndex.code];
+                        if (code && !uniqueCodes.includes(code)) uniqueCodes.push(code);
+                    }
+
+                    dropZone.classList.add('loaded');
+                    document.getElementById('fileName').textContent = `${file.name} (${uniqueCodes.length}件の宅配先)`;
+                    document.getElementById('fileInfo').classList.add('show');
+                    document.getElementById('codeListContent').textContent = uniqueCodes.join(', ');
+                    document.getElementById('codePreview').classList.add('show');
+                    document.getElementById('executeBtn').disabled = false;
+
+                    updateTantouRows();
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function updateTantouRows() {
+            const n = parseInt(document.getElementById('bunkatsu').value);
+            const grid = document.getElementById('tantouGrid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= n; i++) {
+                const row = document.createElement('div');
+                row.className = 'tantou-row';
+                row.innerHTML = `
+                    <span class="badge">担当${i}</span>
+                    <span>開始</span>
+                    <input type="text" id="start${i}" placeholder="開始コード">
+                    <span>〜</span>
+                    <span>終了</span>
+                    <input type="text" id="end${i}" placeholder="終了コード">
+                `;
+                grid.appendChild(row);
+            }
+        }
+
+        function execute() {
+            const n = parseInt(document.getElementById('bunkatsu').value);
+            results = [];
+            let allProducts = {};
+            let tantouTotal = 0;
+
+            for (let t = 1; t <= n; t++) {
+                const startCode = document.getElementById(`start${t}`).value.trim();
+                const endCode = document.getElementById(`end${t}`).value.trim();
+
+                let startRow = -1, endRow = -1;
+                for (let i = window.headerRow + 1; i < sheetData.length; i++) {
+                    const code = String(sheetData[i][window.colIndex.code]);
+                    if (startRow === -1 && code === startCode) startRow = i;
+                    if (code === endCode) endRow = i;
+                }
+
+                let products = {};
+                let subtotal = 0;
+                if (startRow !== -1 && endRow !== -1) {
+                    for (let i = startRow; i <= endRow; i++) {
+                        const row = sheetData[i];
+                        const product = row[window.colIndex.product];
+                        let qty = parseFloat(row[window.colIndex.qty]) || 0;
+                        if (product && qty > 0) {
+                            products[product] = (products[product] || 0) + qty;
+                            allProducts[product] = (allProducts[product] || 0) + qty;
+                            subtotal += qty;
+                        }
+                    }
+                }
+                tantouTotal += subtotal;
+
+                results.push({ tantou: t, startCode, endCode, products, subtotal });
+            }
+
+            let overallTotal = Object.values(allProducts).reduce((a, b) => a + b, 0);
+            results.push({ tantou: '全体', startCode: '', endCode: '', products: allProducts, subtotal: overallTotal, isTotal: true });
+
+            const tantouResult = document.getElementById('tantouCheckResult');
+            tantouResult.classList.add('show');
+
+            if (tantouTotal === overallTotal) {
+                tantouResult.className = 'check-result show success';
+                tantouResult.querySelector('.icon').textContent = '✅';
+                tantouResult.querySelector('.text').textContent = '担当分割チェックOK！';
+                tantouResult.querySelector('.detail').textContent = `担当合計 (${tantouTotal}) = 全体集計 (${overallTotal})`;
+            } else {
+                tantouResult.className = 'check-result show error';
+                tantouResult.querySelector('.icon').textContent = '❌';
+                tantouResult.querySelector('.text').textContent = '担当分割チェックNG！コード範囲を確認';
+                tantouResult.querySelector('.detail').textContent = `担当合計: ${tantouTotal} ≠ 全体集計: ${overallTotal}（差分: ${Math.abs(tantouTotal - overallTotal)}）`;
+            }
+
+            displayResults();
+        }
+
+        function displayResults() {
+            const grid = document.getElementById('resultsGrid');
+            grid.innerHTML = '';
+
+            const sortedResults = [...results].sort((a, b) => {
+                if (a.isTotal) return -1;
+                if (b.isTotal) return 1;
+                return a.tantou - b.tantou;
+            });
+
+            sortedResults.forEach(r => {
+                const box = document.createElement('div');
+                box.className = 'result-box' + (r.isTotal ? ' total' : '');
+
+                const headerContent = r.isTotal
+                    ? '<span class="num">📊</span> 全体集計 ← 楽配くん配達表と照合！'
+                    : `<span class="num">${r.tantou}</span> ${r.startCode} 〜 ${r.endCode}`;
+
+                let tableRows = '';
+                let total = 0;
+
+                Object.entries(r.products)
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([product, qty]) => {
+                        tableRows += `<tr><td>${product}</td><td>${qty}</td></tr>`;
+                        total += qty;
+                    });
+
+                tableRows += `<tr class="sum-row"><td>合計</td><td>${total}</td></tr>`;
+
+                box.innerHTML = `
+                    <div class="result-header">${headerContent}</div>
+                    <table class="result-table">
+                        <thead><tr><th>商品名称</th><th>数量</th></tr></thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                `;
+                grid.appendChild(box);
+            });
+
+            document.getElementById('resultCard').classList.remove('hidden');
+            document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function downloadExcel() {
+            const workbook = new ExcelJS.Workbook();
+
+            const borderStyle = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+            };
+
+            results.forEach(r => {
+                const sheetName = r.isTotal ? '全体集計' : `担当${r.tantou}`;
+                const ws = workbook.addWorksheet(sheetName);
+
+                ws.columns = [{ width: 35 }, { width: 10 }];
+
+                if (routeName) {
+                    const routeRow = ws.addRow([`🚚 ${routeName}`, '']);
+                    routeRow.getCell(1).font = { bold: true, size: 12, color: { argb: 'FFF57F17' } };
+                    routeRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFDE7' } };
+                    routeRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFDE7' } };
+                    ws.mergeCells(1, 1, 1, 2);
+                }
+
+                const title = r.isTotal ? '【全体集計】' : `【担当${r.tantou}】${r.startCode} 〜 ${r.endCode}`;
+                const titleRow = ws.addRow([title, '']);
+                titleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+                titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r.isTotal ? 'FF66BB6A' : 'FF4FC3F7' } };
+                titleRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r.isTotal ? 'FF66BB6A' : 'FF4FC3F7' } };
+                ws.mergeCells(ws.rowCount, 1, ws.rowCount, 2);
+
+                const headerRow = ws.addRow(['商品名称', '数量']);
+                headerRow.eachCell(cell => {
+                    cell.font = { bold: true };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+                    cell.border = borderStyle;
+                    cell.alignment = { horizontal: 'center' };
+                });
+
+                let total = 0;
+                Object.entries(r.products)
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([product, qty]) => {
+                        const row = ws.addRow([product, qty]);
+                        row.eachCell(cell => { cell.border = borderStyle; });
+                        row.getCell(2).alignment = { horizontal: 'right' };
+                        total += qty;
+                    });
+
+                const sumRow = ws.addRow(['合計', total]);
+                sumRow.eachCell(cell => {
+                    cell.font = { bold: true };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+                    cell.border = borderStyle;
+                });
+                sumRow.getCell(2).alignment = { horizontal: 'right' };
+            });
+
+            const allWs = workbook.addWorksheet('全て（通し）');
+            allWs.columns = [{ width: 35 }, { width: 10 }];
+
+            let currentRow = 1;
+
+            if (routeName) {
+                const rc = allWs.getCell(currentRow, 1);
+                rc.value = `🚚 ${routeName}`;
+                rc.font = { bold: true, size: 12, color: { argb: 'FFF57F17' } };
+                rc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFDE7' } };
+                allWs.getCell(currentRow, 2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFDE7' } };
+                allWs.mergeCells(currentRow, 1, currentRow, 2);
+                currentRow += 2;
+            }
+
+            results.forEach((r, idx) => {
+                const title = r.isTotal ? '【全体集計】' : `【担当${r.tantou}】${r.startCode} 〜 ${r.endCode}`;
+                const titleCell = allWs.getCell(currentRow, 1);
+                titleCell.value = title;
+                titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+                titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r.isTotal ? 'FF66BB6A' : 'FF4FC3F7' } };
+                allWs.getCell(currentRow, 2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r.isTotal ? 'FF66BB6A' : 'FF4FC3F7' } };
+                allWs.mergeCells(currentRow, 1, currentRow, 2);
+                currentRow++;
+
+                const h1 = allWs.getCell(currentRow, 1);
+                const h2 = allWs.getCell(currentRow, 2);
+                h1.value = '商品名称';
+                h2.value = '数量';
+                [h1, h2].forEach(c => {
+                    c.font = { bold: true };
+                    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+                    c.border = borderStyle;
+                    c.alignment = { horizontal: 'center' };
+                });
+                currentRow++;
+
+                let total = 0;
+                Object.entries(r.products)
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([product, qty]) => {
+                        const c1 = allWs.getCell(currentRow, 1);
+                        const c2 = allWs.getCell(currentRow, 2);
+                        c1.value = product;
+                        c2.value = qty;
+                        c1.border = borderStyle;
+                        c2.border = borderStyle;
+                        c2.alignment = { horizontal: 'right' };
+                        total += qty;
+                        currentRow++;
+                    });
+
+                const s1 = allWs.getCell(currentRow, 1);
+                const s2 = allWs.getCell(currentRow, 2);
+                s1.value = '合計';
+                s2.value = total;
+                [s1, s2].forEach(c => {
+                    c.font = { bold: true };
+                    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+                    c.border = borderStyle;
+                });
+                s2.alignment = { horizontal: 'right' };
+                currentRow += 2;
+            });
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            saveAs(blob, '配達分割結果.xlsx');
+        }
+
+        updateTantouRows();
+    </script>
+</body>
+</html>
